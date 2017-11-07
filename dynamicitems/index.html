@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nombre de su Tienda</title>
+
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/custom.css" rel="stylesheet">
+    <link href="css/jquery.bootstrap-touchspin.css" rel="stylesheet" type="text/css" />
+
+    <script src="https://www.paypalobjects.com/api/checkout.js"></script>
+  </head>
+
+  <body>
+
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">Nombre de su Tienda</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="row" id="items-list"></div>
+    </div><!-- /.container -->
+
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/jquery.bootstrap-touchspin.js"></script>
+    <script src="js/parse-1.6.14.min.js"></script>
+
+    <script type="text/javascript">
+     
+      function renderPaypalButtons(buttonsPromises) {
+
+          var itemsProcessed = 0;
+        
+          buttonsPromises.forEach(function(opts) {
+
+              paypal.Button.render({
+
+                  env: 'sandbox', // O 'live'
+
+                  locale: 'es_MX',
+
+                  style: {
+                      label: 'checkout',
+                      size:  'small',    // small | medium | large | responsive
+                      shape: 'rect',     // pill | rect
+                      color: 'gold'      // gold | blue | silver | black
+                  },
+
+                  client: {
+                      sandbox: 'AaTpxon0cidQvg-V1doSuHz3xv4AxOBGmxf_-XPDhl7SlO_RIXvTjUKqmGTjyvk6gXCcdNYDu-_u87iD',
+                      production: '<<<AQUÍ VA SU CLIENT ID DE PRODUCCIÓN>>>'
+                  },
+
+                  commit: true, // Show a 'Pay Now' button
+
+                  payment(data, actions) {
+
+                      var numArticles = $(opts.productInputId).val();
+                      var amountTotal = (parseInt(numArticles)*opts.productPrice).toString();
+
+                      return actions.payment.create({
+                          payment: {
+                              transactions: [
+                                  {
+                                      amount: { 
+                                          total: amountTotal, 
+                                          currency: 'MXN' 
+                                      },
+                                      description: "Compra desde Mi Tienda",
+                                      item_list: {
+                                          items: [
+                                            {
+                                              "name": opts.productName,
+                                              "price": opts.productPrice,
+                                              "currency": "MXN",
+                                              "quantity": numArticles,
+                                              "sku": opts.productSku
+                                            }
+                                          ]
+                                      }
+                                  }
+                              ]
+                          }
+                      });
+
+                  },
+                  
+                  onAuthorize(data, actions) {
+                      
+                      return actions.payment.get().then(function(paymentDetails) {
+                          return actions.payment.execute().then(function() {
+                              window.alert('¡Pago Completado! Gracias por su compra, vuelva pronto.');
+                              // Muestra un mensaje al finalizar la compra
+                          });
+                      });
+                  },
+
+                  onCancel: function(data, actions) {
+                      // Show a cancel page or return to cart
+                      console.log("Error: " + data);
+                  }
+                  
+              }, opts.productDivId).then(function() {
+
+                  itemsProcessed++;
+
+                  if(itemsProcessed === buttonsPromises.length) {
+                      console.log("Todos los productos dibujados");
+
+                      $(".input-num-articles").TouchSpin({
+                          min: 1, 
+                          max: 100}
+                      );
+
+                  }
+
+              });
+
+          });
+      
+      }
+
+      //Configuración de Back4App
+      Parse.$ = jQuery;
+      Parse.initialize("dVVty0n8MrhMhTusZHskFKJADY2HmG17KWW2TpQ9", "ZauyN5aDZHeWgWp5W73U4qL6yCMm66Hf67QZNy5q");
+      Parse.serverURL = 'https://parseapi.back4app.com';
+
+      var Product = Parse.Object.extend("Product");
+      var query = new Parse.Query(Product);
+      query.find({
+        
+        success: function(results) {
+
+          var promises = [];
+
+          for (var i = 0; i < results.length; i++) {
+
+            var object = results[i];
+
+            var divId = "paypal-button-" + i;
+            var inputId = "num-articles" + i;
+
+            var item = '<div class="col-sm-6 col-md-4">' +
+                          '<div class="thumbnail">' +
+                            '<img src="' + object.get("image").url() + '" alt="">' +
+                            '<div class="caption">' +
+                              '<h3>' + object.get("title") + '</h3>' +
+                              '<h4>$' + object.get("price") + '</h4>' + 
+                              '<p>' + object.get("sku") + '</p>' + 
+                              '<div id="' + divId + '"></div>' +
+                              '<input class="input-num-articles" id="' + inputId + '" type="text" value="1" name="' + inputId + '">'+
+                            '</div>' +
+                          '</div>' +
+                        '</div>';
+
+            $("#items-list").append(item);
+
+            promises.push({
+                productName: object.get("title"),
+                productPrice: object.get("price"),
+                productSku: object.get("sku"),
+                productInputId: '#' + inputId,
+                productDivId: '#' + divId
+            });
+
+          }
+
+          renderPaypalButtons(promises);
+
+        },
+        error: function(error) {
+          alert("Error: " + error.code + " " + error.message);
+        }
+      });
+
+
+    </script>
+
+  </body>
+</html>
